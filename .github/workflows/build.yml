@@ -1,12 +1,13 @@
 
 
+
 name: Build StrengthSMP
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'StrengthSMP-GitHub-Build.zip'
+      - '**.zip'
       - '.github/workflows/build.yml'
 
 jobs:
@@ -18,25 +19,44 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 21
-        uses: actions/setup-java@v6
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
 
-      - name: Check Java
-        run: java -version
-
-      - name: Extract ZIP
+      - name: Find and extract ZIP
         run: |
-          unzip -o StrengthSMP-GitHub-Build.zip -d source
+          ZIP="StrengthSMP-GitHub-Build.zip"
 
-      - name: Build plugin
+          if [ ! -f "$ZIP" ]; then
+            ZIP=$(find . -maxdepth 1 -type f -iname 'StrengthSMP*.zip' -print -quit)
+          fi
+
+          if [ -z "$ZIP" ] || [ ! -f "$ZIP" ]; then
+            echo "ERROR: ZIP sumber tidak ditemukan!"
+            echo "Daftar file ZIP:"
+            find . -type f -iname '*.zip'
+            exit 1
+          fi
+
+          echo "Menggunakan ZIP: $ZIP"
+          mkdir -p source
+          unzip -o "$ZIP" -d source
+
+      - name: Find Maven project
         run: |
           POM=$(find source -name pom.xml -print -quit)
           if [ -z "$POM" ]; then
-            echo "ERROR: pom.xml tidak ditemukan"
+            echo "ERROR: pom.xml tidak ditemukan di dalam ZIP!"
+            find source -maxdepth 4 -type f
             exit 1
           fi
+          echo "POM ditemukan: $POM"
+          echo "$POM" > pom_path.txt
+
+      - name: Build plugin
+        run: |
+          POM=$(cat pom_path.txt)
           cd "$(dirname "$POM")"
           mvn -B clean package
 
